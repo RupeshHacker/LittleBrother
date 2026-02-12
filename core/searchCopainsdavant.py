@@ -1,99 +1,85 @@
+import requests
+import re
 from bs4 import BeautifulSoup
 from terminaltables import SingleTable
-import requests, re
+from urllib.parse import quote
 
-def searchCopainsdavant(nom, city):
-	url = "http://copainsdavant.linternaute.com/s/?ty=1&prenom=%s&nom=%s&nomjf=&annee=&anneeDelta=&ville=%s"
-	name = nom
-	if " " in name:
-		nom = name.split(" ")[1]
-		prenom = name.split(" ")[0]
-	else:
-		prenom = ""
-		nom = name
+def search_copains_davant(full_name, city):
+    """
+    Scrapes Copains d'Avant for people based on name and city.
+    """
+    # 1. Parse Name
+    name_parts = full_name.split(" ", 1)
+    prenom = name_parts[0] if len(name_parts) > 1 else ""
+    nom = name_parts[1] if len(name_parts) > 1 else full_name
 
-	data = requests.get(url % (prenom, nom, city)).content.decode('utf-8')
+    # 2. Build and Execute Search Request
+    base_url = "http://copainsdavant.linternaute.com/s/"
+    params = f"?ty=1&prenom={quote(prenom)}&nom={quote(nom)}&ville={quote(city)}"
+    
+    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) Kali/2026.1'}
+    
+    try:
+        res = requests.get(base_url + params, headers=headers, timeout=10)
+        res.raise_for_status()
+    except Exception as e:
+        print(f"[!] Connection Error: {e}")
+        return
 
-	soup = BeautifulSoup(data, "html.parser")
+    soup = BeautifulSoup(res.text, "lxml")
+    
+    # Identify result blocks
+    # Each person is typically inside a block that contains their name and location
+    results = soup.select('ul.app_list--result__search > li')
+    
+    table_data = [('Name', 'Location', 'Birth Date', 'Occupation', 'Profile ID')]
+    found_count = 0
 
-	nameList = soup.find_all("div", {"class": "grid_last"})
-	addresseList = soup.find_all("span", {"class": "app_list--result__search__place"})
-	urlList = soup.find_all("h3")
-	birthdayList = []
-	travailList = []
+    for person in results:
+        # Extract basic info from the search list
+        name_tag = person.select_one('div.grid_last a')
+        loc_tag = person.select_one('span.app_list--result__search__place')
+        
+        if not name_tag:
+            continue
 
-	urlList2 = []
+        name = name_tag.get_text(strip=True)
+        location = loc_tag.get_text(strip=True).split(" - ")[0] if loc_tag else "Unknown"
+        profile_url = name_tag.get('href', '')
+        profile_id = re.search(r'/p/([^/]+)', profile_url)
+        profile_id = profile_id.group(1) if profile_id else "N/A"
 
-	for url in urlList:
-		url = url.find("a")
-		urls = str(url)
-		href = re.search(r"/p/([a-zA-Z0-9_-]+)", urls).group()
-		urlList2.append(href)
+        # 3. Deep Scrape Profile (Fetch Birthdate and Work)
+        # Note: This can be slow if there are many results. We limit to first 10.
+        birth_date = "N/A"
+        work = "N/A"
+        
+        if profile_url and found_count < 10:
+            try:
+                p_res = requests.get(f"http://copainsdavant.linternaute.com{profile_url}", headers=headers, timeout=5)
+                p_soup = BeautifulSoup(p_res.text, "lxml")
+                
+                # Use specific tags for Birthday and Job
+                bday_tag = p_soup.select_one('abbr.bday')
+                if bday_tag:
+                    birth_date = bday_tag.get('title', '').split(' ')[0] # Extract YYYY-MM-DD
+                
+                job_tag = p_soup.select_one('p.title')
+                if job_tag:
+                    work = job_tag.get_text(strip=True)
+            except:
+                pass
 
-	for url in urlList2:
-		data = requests.get("http://copainsdavant.linternaute.com/%s" % (url)).content.decode('utf-8')
-		soup = BeautifulSoup(data, "html.parser")
-		birthdayList0 = soup.find_all("abbr", {"class": "bday"})
-		item = len(birthdayList0)
-		if item == 0:
-		 	birthdayList0.append("None")
-	
-		for b in birthdayList0:
-			birthdayList.append(str(b))
+        table_data.append((name, location, birth_date, work, profile_id))
+        found_count += 1
 
-		travailList0 = soup.find_all("p", {"class": "title"})
-		item = len(travailList0)
-		if item == 0:
-		 	travailList0.append("None")
-	
-		for t in travailList0:
-			travailList.append(str(t))
+    # 4. Display Results
+    if found_count > 0:
+        table = SingleTable(table_data, " Copains d'Avant Results ")
+        print("\n" + table.table)
+    else:
+        print("[!] No results found for this name and city.")
 
-	namesList2 = []
-	addressesList2 = []
-	birthdayList2 = []
-	travailList2 = []
-
-	for name in nameList:
-		name = name.find("a")
-		namesList2.append(name.string)
-	for addr in addresseList:
-		addressesList2.append(addr.string.strip())
-	for date in birthdayList:
-		date = date.replace("<abbr class=\"bday\" title=\"", "").replace("00:00:00\">", "- ").replace("</abbr>", "").replace("\">", "")
-		birthdayList2.append(date)
-	for travail in travailList:
-		travail = travail.replace("<p class=\"title\">", "").replace("</p>", "")
-		travailList2.append(travail)
-
-	regroup = zip(namesList2, addressesList2, birthdayList2, travailList2, urlList2)
-
-	title = " Copain D'avant "
-
-	TABLE_DATA = [
-		('Name', 'Adresse', 'Date', 'Work', 'url'),
-	]
-
-
-	count = 0
-
-	for info in regroup:
-		count += 1
-		name = info[0]
-		adresse = info[1]
-		adresse = adresse.split(" - ")[0]
-		dateBirthday = info[2]
-		try:
-			dateBirthday = dateBirthday.split(" - ")[1]
-		except:
-			pass
-		travail = info[3]
-		url = info[4]
-
-		infos = (name, adresse, dateBirthday, travail, url)
-
-		TABLE_DATA.append(infos)
-
-	if count > 0:
-		table_instance = SingleTable(TABLE_DATA, title)
-		print(table_instance.table)
+if __name__ == "__main__":
+    # Test call
+    search_copains_davant("Jean Dupont", "Paris")

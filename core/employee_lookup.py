@@ -1,38 +1,53 @@
 # -*- coding: utf-8 -*-
-
 from core.LinkedIn import searchLinkedIn
-from colorama import init, Fore,  Back,  Style
+from colorama import init, Fore
 from terminaltables import SingleTable
 
-warning = "["+Fore.RED+"!"+Fore.RESET+"]"
-question = "["+Fore.YELLOW+"?"+Fore.RESET+"]"
-found = "["+Fore.GREEN+"+"+Fore.RESET+"]"
-wait = "["+Fore.MAGENTA+"*"+Fore.RESET+"]"
+# Initialize colorama with autoreset to avoid manual Fore.RESET
+init(autoreset=True)
 
-init()
+# UI Icons using f-strings
+W = f"[{Fore.RED}!{Fore.RESET}]"
+Q = f"[{Fore.YELLOW}?{Fore.RESET}]"
+F = f"[{Fore.GREEN}+{Fore.RESET}]"
+S = f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
 def employee_lookup():
-	entreprise = input(" Entreprise: ")
-	city = input(" Ville: ")
+    # .strip() prevents leading/trailing spaces from breaking the search
+    enterprise = input(f"{Q} Enterprise: ").strip()
+    city = input(f"{Q} Ville: ").strip()
 
-	print("\n"+wait+" Recherche des employés de '%s'...\n" % (entreprise))
+    if not enterprise:
+        print(f"{W} Enterprise name is required.")
+        return
 
-	linkedin = searchLinkedIn()
-	linkedin.search(entreprise, city)
-	
-	found = linkedin.found
+    print(f"\n{S} Recherche des employés de '{enterprise}' à '{city or 'Partout'}'...\n")
 
-	if found:
-		employee = linkedin.employees
+    try:
+        # Initialize and perform search
+        linkedin = searchLinkedIn()
+        linkedin.search(enterprise, city)
+        
+        # Check if the search returned results
+        if hasattr(linkedin, 'found') and linkedin.found:
+            employees = getattr(linkedin, 'employees', [])
+            
+            if not employees:
+                print(f"{W} Aucun employé trouvé.")
+                return
 
-		TABLE_DATA = [
-			("Num", "Name"),
-		] 
+            # Optimized Table Generation using List Comprehension
+            table_data = [["Num", "Name"]]
+            table_data.extend([[i + 1, name] for i, name in enumerate(employees)])
 
-		x = 1
-		for employe in employee:
-			TABLE_DATA.append((x, employe))
-			x += 1
+            table = SingleTable(table_data, title=f" LinkedIn: {enterprise} ")
+            print(table.table)
+            print(f"\n{F} Total trouvé: {len(employees)}")
+        else:
+            print(f"{W} Aucun résultat pour '{enterprise}'.")
 
-		table = SingleTable(TABLE_DATA, title=" LinkedIn ")
-		print(table.table)
+    except Exception as e:
+        print(f"{W} Une erreur est survenue lors de la recherche: {e}")
+
+if __name__ == "__main__":
+    employee_lookup()

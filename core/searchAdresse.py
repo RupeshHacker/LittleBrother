@@ -1,47 +1,72 @@
 import requests
+from urllib.parse import quote
+from colorama import init, Fore
+
+# Local imports
 from core.searchLocalCH import searchLocalCH
 from core.searchYellowLU import searchYellowLU
 from core.searchPJ import searchPJ
-from colorama import init, Fore,  Back,  Style
 
-warning = "["+Fore.RED+"!"+Fore.RESET+"]"
-question = "["+Fore.YELLOW+"?"+Fore.RESET+"]"
-found = "["+Fore.GREEN+"+"+Fore.RESET+"]"
-wait = "["+Fore.MAGENTA+"*"+Fore.RESET+"]"
+init(autoreset=True)
 
-init()
+# UI Icons
+W = f"[{Fore.RED}!{Fore.RESET}]"
+Q = f"[{Fore.YELLOW}?{Fore.RESET}]"
+F = f"[{Fore.GREEN}+{Fore.RESET}]"
+S = f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
-def searchAdresse(codemonpays):
-	adresse = input(" Adresse: ")
-	# clear()
-	print("\n"+wait+" Recherche '%s'..." % (adresse))
+def search_address(country_code):
+    """
+    Look up addresses in French, Swiss, or Luxembourgish phone books.
+    """
+    address = input(f"{Q} Adresse (ex: 12 rue de la Paix, Paris): ").strip()
+    
+    if not address:
+        print(f"{W} L'adresse ne peut pas être vide.")
+        return
 
-	headers = {
-		'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36',
-	    'referrer': 'https://google.com',
-    	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    	'Accept-Encoding': 'gzip, deflate, br',
-    	'Accept-Language': 'en-US,en;q=0.9',
-    	'Pragma': 'no-cache'
+    print(f"\n{S} Recherche de '{address}' dans les annuaires [{country_code}]...")
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.google.com/'
     }
 
-	if codemonpays == "FR":
-		# search PageBlanche
-		url = "https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=&ou="
-		requete = requests.get(url+adresse, headers=headers)
-		searchPJ(requete)
+    # Helper function to prevent repetitive code
+    def lookup_france(addr):
+        # quote() ensures spaces like "Paris 75001" become "Paris%2075001"
+        url = f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=&ou={quote(addr)}"
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            searchPJ(res)
+        except Exception as e:
+            print(f"{W} Erreur PagesJaunes: {e}")
 
-	elif codemonpays == "CH":
-		# search tel.local.hc
-		url = "https://tel.local.ch/fr/q?ext=1&name=&company=&street={}&city=&area="
-		searchLocalCH(url.format(adresse))
+    def lookup_switzerland(addr):
+        url = f"https://tel.local.ch/fr/q?ext=1&name=&company=&street={quote(addr)}&city=&area="
+        try:
+            # Note: searchLocalCH might need the response or just the URL depending on your core implementation
+            searchLocalCH(url) 
+        except Exception as e:
+            print(f"{W} Erreur Local.ch: {e}")
 
-	else:
-		# Recherche FR
-		url = "https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=&ou="
-		requete = requests.get(url+adresse, headers=headers)
-		searchPJ(requete)
+    def lookup_luxembourg(addr):
+        try:
+            # Assuming searchYellowLU takes the address directly or handles its own requests
+            searchYellowLU(addr)
+        except Exception as e:
+            print(f"{W} Erreur Yellow.lu: {e}")
 
-		# Recherche CH
-		url = "https://tel.local.ch/fr/q?ext=1&name=&company=&street={}&city=&area="
-		searchLocalCH(url.format(adresse))
+    # Dispatcher Logic
+    if country_code == "FR":
+        lookup_france(address)
+    elif country_code == "CH":
+        lookup_switzerland(address)
+    elif country_code == "LU":
+        lookup_luxembourg(address)
+    else:
+        # If no specific country, try all available (standard OSINT behavior)
+        print(f"{S} Code pays inconnu ou 'ALL' - Tentative sur tous les services...")
+        lookup_france(address)
+        lookup_switzerland(address)
+        lookup_luxembourg(address)

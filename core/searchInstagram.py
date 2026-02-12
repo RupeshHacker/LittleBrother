@@ -1,92 +1,96 @@
-from colorama import init, Fore,  Back,  Style
+import os
+from colorama import init, Fore
 from core.instagramSearchTool import instagramSearchTool
 from core.shortCutUrl import shortCutUrl
-import os
 
-warning = "["+Fore.RED+"!"+Fore.RESET+"]"
-question = "["+Fore.YELLOW+"?"+Fore.RESET+"]"
-found = "["+Fore.GREEN+"+"+Fore.RESET+"]"
-wait = "["+Fore.MAGENTA+"*"+Fore.RESET+"]"
+init(autoreset=True)
 
-def searchInstagram():
-	user = input(" Username: ")
-	urlProfil = "https://instagram.com/"+user
+# UI Icons using f-strings for speed
+W = f"[{Fore.RED}!{Fore.RESET}]"
+Q = f"[{Fore.YELLOW}?{Fore.RESET}]"
+F = f"[{Fore.GREEN}+{Fore.RESET}]"
+S = f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
-	insta = instagramSearchTool()
-	insta.getInfo(user)
+def search_instagram():
+    user = input(f"{Q} Username: ").strip()
+    if not user: return
 
-	if not insta.name:
-		print("\n" + warning + "Username '%s' not found." % user)
-		return
+    insta = instagramSearchTool()
+    insta.get_info(user)
 
-	name = insta.name
-	userId = insta.id
-	images = insta.profi_pic_hd
-	images = shortCutUrl(images)
-	username = insta.username
-	private = insta.private
-	followers = insta.followers
-	friend = insta.friends
-	publication = insta.medias
-	bio = insta.biography
-	url = insta.url
-	email = insta.email
-	adresse = insta.adresse
-	phone = insta.phone
+    if not insta.name:
+        print(f"\n{W} Username '{user}' not found.")
+        return
 
+    # Display Header
+    print(f"\n[{Fore.CYAN}{insta.username}{Fore.RESET}]\n")
+    
+    # Using a dictionary to loop through standard fields cleanly
+    fields = [
+        ("Name", insta.name),
+        ("ID", insta.id),
+        ("Protected", "Yes" if insta.private else "No"),
+        ("Abonnés", f"{insta.followers}  |  Abonnements: {insta.friends}"),
+        ("Publication", insta.medias),
+        ("Bio", insta.biography),
+        ("Pictures", shortCutUrl(insta.profi_pic_hd))
+    ]
 
-	print("\n[%s]\n" % (username))
-	print(found+" Name: %s" % (name))
-	print(found+" Pictures: %s" % (images))
-	print(found+" ID: %s" % (userId))
-	print(found+" Protected: %s" % (private))
-	print(found+" Abonnés: %s  |  Abonnements: %s" % (followers, friend))
-	print(found+" Publication: %s" % (publication))
-	print(found+" Bio: %s" % (bio))
+    for label, value in fields:
+        if value:
+            print(f"{F} {label}: {value}")
 
-	if url:
-		print(found+" Url: %s" % (url))
-	if email:
-		print(found+" Email: %s" % (email))
-	if phone:
-		print(found+" Telephone: %s" % (phone))
-	if adresse:
-		print(found+" Lieux: %s" % (adresse))
+    # Display Conditional Fields
+    extra_fields = {
+        "Url": insta.url,
+        "Email": insta.email,
+        "Telephone": insta.phone,
+        "Lieux": insta.adresse
+    }
 
-	if not private:
-		print("\n"+question+" Voulez vous télécharger les 12 dernières photos postées ?")
+    for label, value in extra_fields.items():
+        if value:
+            print(f"{F} {label}: {value}")
 
-		while True:
-			choix = input("\n [o/N]: ")
+    # Media Downloader Logic
+    if not insta.private:
+        print(f"\n{Q} Voulez vous télécharger les 12 dernières photos postées ?")
+        choix = input(" [o/N]: ").strip().upper()
 
-			if choix == "" or choix.upper() == "N":
-				break
-			
-			elif choix.upper() == "O":
-				print("\n"+question+" Ou voulez-vous enregistrer les photos ?")
-				pathDefault = os.getcwd()
-				print(Fore.YELLOW+" Default path: "+pathDefault+Fore.RESET)
-				path = input("\n Path: ")
-				print("\n"+wait+" Téléchargement des photos de '%s'\n" % (user))
-			
-				if not path:
-					path = pathDefault
-			
-				pictureInfo = insta.get_picturesInfo(urlProfil)
+        if choix == "O":
+            path_default = os.getcwd()
+            print(f"\n{Q} Où voulez-vous enregistrer les photos ?")
+            print(f"{Fore.YELLOW} Default path: {path_default}{Fore.RESET}")
+            
+            save_path = input(" Path: ").strip() or path_default
 
-				for i in pictureInfo:
-					media = pictureInfo[i]['display']
-					typeMedia = pictureInfo[i]['type_media']
-					date = pictureInfo[i]['date']
-					view = pictureInfo[i]['info']
-					loc = pictureInfo[i]['localisation'] 
-					filename = user+'_'+str(i)+".jpg"
+            # Ensure directory exists (Important for Linux/Kali)
+            if not os.path.exists(save_path):
+                try:
+                    os.makedirs(save_path)
+                except Exception as e:
+                    print(f"{W} Erreur lors de la création du dossier: {e}")
+                    return
 
-					if not loc:
-						loc = ''
+            print(f"\n{S} Téléchargement des photos de '{user}'...\n")
+            
+            # Use the method from your optimized search tool
+            picture_info = insta.get_pictures_info(user)
 
-					insta.downloadPictures(media, path, filename)
-					print("(%s) %s %s [%s] %s téléchargé." % (str(i), typeMedia, date, view, loc))
+            for i, info in picture_info.items():
+                media_url = info['display']
+                filename = f"{user}_{i}.jpg"
+                
+                try:
+                    insta.downloadPictures(media_url, save_path, filename)
+                    # Clean print formatting
+                    meta = f"[{info['info'][:30]}...]" if info['info'] else ""
+                    loc = f"@{info['localisation']}" if info['localisation'] else ""
+                    print(f"({i}) {info['type_media']} {info['date']} {meta} {loc} téléchargé.")
+                except Exception as e:
+                    print(f"{W} Erreur téléchargement {i}: {e}")
 
-				print("\n"+found+" Téléchargement fini.")
-				break
+            print(f"\n{F} Téléchargement fini.")
+
+if __name__ == "__main__":
+    search_instagram()

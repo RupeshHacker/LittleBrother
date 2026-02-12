@@ -1,56 +1,63 @@
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import quote
 
-class searchLinkedIn:
-	def __init__(self):
-		server = "encrypted.google.com"
-		limit = "100"        
-		
-		self.headers = {
-			'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36',
-    	    'referrer': 'https://google.com',
-        	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        	'Accept-Encoding': 'utf-8',
-        	'Accept-Language': 'en-US,en;q=0.9',
-        	'Pragma': 'no-cache'
+class SearchLinkedIn: # PascalCase for classes
+    def __init__(self):
+        # encrypted.google.com is deprecated; using standard google.com
+        self.base_url = "https://www.google.com/search"
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.5'
+        }
+        # Common suffixes to strip from names
+        self.suffixes = ["| LinkedIn", "on LinkedIn", "- LinkedIn", "LinkedIn", "…"]
+
+    def search(self, company, city):
+        """
+        Performs Google Dorking to find LinkedIn profiles.
+        """
+        # Optimized Google Dork: site:linkedin.com/in "Company" "City"
+        query = f'site:linkedin.com/in "{company}" "{city}"'
+        params = {
+            'q': query,
+            'num': 100,
+            'hl': 'en'
         }
 
-		self.linkedin_list = ["| LinkedIn", "on LinkedIn", "- LinkedIn", "LinkedIn"]
-		self.google_search = "https://"+server+"/search?num="+limit+"&q=%s %s insite:fr.linkedin.com/in"
+        employee_list = []
+        profiles_list = []
 
-	def search(self, searching, city):
-		google_search = self.google_search % (searching, city)
-		linkedin_list = self.linkedin_list
+        try:
+            res = requests.get(self.base_url, headers=self.headers, params=params, timeout=10)
+            if res.status_code == 200:
+                # Use lxml parser for speed on Kali
+                soup = BeautifulSoup(res.text, "lxml")
+                
+                # Modern Google result containers
+                results = soup.select('div.g')
 
-		employee_list = []
-		pages_list = []
+                for g in results:
+                    # 1. Extract Name
+                    h3 = g.select_one('h3')
+                    if h3:
+                        name = h3.get_text()
+                        # Clean the name from LinkedIn suffixes
+                        for suffix in self.suffixes:
+                            name = name.replace(suffix, "")
+                        employee_list.append(name.strip())
 
-		req = requests.get(google_search, headers=self.headers)
-		status_code = req.status_code
+                    # 2. Extract Profile URL
+                    link = g.select_one('a')
+                    if link and 'href' in link.attrs:
+                        url = link['href']
+                        if "linkedin.com/in/" in url:
+                            profiles_list.append(url)
 
-		if status_code == 200:
-			html = BeautifulSoup(req.text, "html.parser")
-			results = html.find_all('div', {'class': 'r' })
+        except Exception as e:
+            print(f"Search Error: {e}")
 
-			for res in results:
-				employee = res.find_all("h3", {"class":"LC20lb"})
-				if employee:
-					employee = employee[0].text.strip()
-				
-				if "LinkedIn" in employee:
-					for l in linkedin_list:
-						if l in employee:
-							employee = employee.replace(l, "")
-							employee_list.append(employee)
-
-				page = res.find_all("cite", {'class':'iUh30'})
-				for p in page:
-					if "linkedin" in p.text.strip().lower():
-						pages_list.append(p.text.strip().split("›")[1])
-
-		if len(employee_list) > 0:
-			found = len(employee_list)
-
-		self.found = len(employee_list)
-		self.employees = employee_list
-		self.profiles = pages_list
+        # Setting attributes for compatibility with your existing UI
+        self.found = len(employee_list)
+        self.employees = employee_list
+        self.profiles = profiles_list

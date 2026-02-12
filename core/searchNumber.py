@@ -1,91 +1,77 @@
 import requests
+from colorama import init, Fore
+from terminaltables import SingleTable
 
+# Core imports
 from core.searchPJ import searchPJ
 from core.searchInfoNumero import searchInfoNumero
 from core.searchLocalCH import searchLocalCH
 from core.searchYellowLU import searchYellowLU
-from terminaltables import SingleTable
+
+init(autoreset=True)
+
+# UI Icons
+W = f"[{Fore.RED}!{Fore.RESET}]"
+Q = f"[{Fore.YELLOW}?{Fore.RESET}]"
+S = f"[{Fore.MAGENTA}*{Fore.RESET}]"
+
+class PhoneSearcher:
+    def __init__(self):
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://google.com'
+        }
+
+    def _show_info_table(self, num):
+        """Helper to fetch and display technical phone info (Type, Operator, etc)"""
+        phone = searchInfoNumero()
+        phone.search(num)
+        
+        table_data = [
+            ["Field", "Value"],
+            ["Numéro", num],
+            ["Type", phone.phone_type or "Inconnu"],
+            ["Opérateur", phone.operator or "Inconnu"],
+            ["Ville", phone.city or "Inconnu"],
+            ["Localisation", phone.location or "Inconnu"]
+        ]
+        
+        print("\n" + SingleTable(table_data, " Infos Techniques ").table)
+
+    def search_france(self, num):
+        url = f"https://www.pagesjaunes.fr/annuaireinverse/recherche?quoiqui={num}"
+        try:
+            req = requests.get(url, headers=self.headers, timeout=10)
+            searchPJ(requete=req, num=num)
+            self._show_info_table(num)
+        except Exception as e:
+            print(f"{W} Erreur PagesJaunes: {e}")
+
+    def search_switzerland(self, num):
+        url = f"https://tel.local.ch/fr/q?ext=1&rid=NV3M&name=&company=&street=&city=&area=&phone={num}"
+        searchLocalCH(url)
+
+    def search_luxembourg(self, num):
+        url = f"https://www.yellow.lu/fr/annuaire-inverse/recherche?query={num}"
+        searchYellowLU(url)
 
 def searchNumber(codemonpays):
-	num = input(" Téléphone: ")
+    num = input(f"{Q} Téléphone: ").strip()
+    if not num: return
 
-	headers = {
-		'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36',
-	    'referrer': 'https://google.com',
-    	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    	'Accept-Encoding': 'gzip, deflate, br',
-    	'Accept-Language': 'en-US,en;q=0.9',
-    	'Pragma': 'no-cache'
-    }
+    searcher = PhoneSearcher()
+    print(f"\n{S} Recherche inversée pour '{num}' [{codemonpays}]...")
 
-	if codemonpays == "FR":
-		url = "https://www.pagesjaunes.fr/annuaireinverse/recherche?quoiqui="
-		requete = requests.get(url+num, headers=headers)
-		searchPJ(requete=requete, num=num)
-		phone = searchInfoNumero()
-		phone.search(num)
-
-		TABLE_DATA = []
-
-		city = phone.city
-		operator = phone.operator
-		location = phone.location
-		_type = phone.phone_type
-
-		infos = ("Numero", num)
-		TABLE_DATA.append(infos)
-		infos = ("Type", _type)
-		TABLE_DATA.append(infos)
-		infos = ("Operateur", operator)
-		TABLE_DATA.append(infos)
-		infos = ("City", city)
-		TABLE_DATA.append(infos)
-		infos = ("Localisation", location)
-		TABLE_DATA.append(infos)
-
-		table = SingleTable(TABLE_DATA)
-		print("\n"+table.table)
-
-	elif codemonpays == "CH":
-		# search CH
-		url = "https://tel.local.ch/fr/q?ext=1&rid=NV3M&name=&company=&street=&city=&area=&phone="
-		searchLocalCH(url+num)
-
-	elif codemonpays == "LU":
-		url = "https://www.yellow.lu/fr/annuaire-inverse/recherche?query="
-		searchYellowLU(url+num)
-
-	else:
-		# !!!! c'est deguelasse je sais... mais je n'avais pas le choix.. sa sera propre dans une prochaine MAJ... encore desole..
-		url = "https://www.pagesjaunes.fr/annuaireinverse/recherche?quoiqui="
-		requete = requests.get(url+num, headers=headers)
-		searchPJ(requete=requete, num=num)
-		phone = searchInfoNumero()
-		phone.search(num)
-
-		TABLE_DATA = []
-
-		city = phone.city
-		operator = phone.operator
-		location = phone.location
-		_type = phone.phone_type
-
-		infos = ("Numero", num)
-		TABLE_DATA.append(infos)
-		infos = ("Type", _type)
-		TABLE_DATA.append(infos)
-		infos = ("Operateur", operator)
-		TABLE_DATA.append(infos)
-		infos = ("City", city)
-		TABLE_DATA.append(infos)
-		infos = ("Localisation", location)
-		TABLE_DATA.append(infos)
-
-		table = SingleTable(TABLE_DATA)
-		print("\n"+table.table)
-
-		url = "https://tel.local.ch/fr/q?ext=1&rid=NV3M&name=&company=&street=&city=&area=&phone="
-		searchLocalCH(url+num)
-
-		url = "https://www.yellow.lu/fr/annuaire-inverse/recherche?query="
-		searchYellowLU(url+num)
+    # Logic Dispatcher
+    if codemonpays == "FR":
+        searcher.search_france(num)
+    elif codemonpays == "CH":
+        searcher.search_switzerland(num)
+    elif codemonpays == "LU":
+        searcher.search_luxembourg(num)
+    else:
+        # If 'ALL' or unknown, run all services without repeating code
+        print(f"{S} Scan Global activé...")
+        searcher.search_france(num)
+        searcher.search_switzerland(num)
+        searcher.search_luxembourg(num)

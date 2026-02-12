@@ -1,76 +1,78 @@
-from colorama import init, Fore,  Back,  Style
-from core.leaked import leaked
+import requests
+import re
+from colorama import init, Fore
 from terminaltables import SingleTable
-import requests, re
+from core.leaked import Leaked  # Using the optimized Leaked class we created
 
-warning = "["+Fore.RED+"!"+Fore.RESET+"]"
-question = "["+Fore.YELLOW+"?"+Fore.RESET+"]"
-found = "["+Fore.GREEN+"+"+Fore.RESET+"]"
-wait = "["+Fore.MAGENTA+"*"+Fore.RESET+"]"
+init(autoreset=True)
 
-init()
+# UI Icons
+W, Q, F, S = f"[{Fore.RED}!{Fore.RESET}]", f"[{Fore.YELLOW}?{Fore.RESET}]", f"[{Fore.GREEN}+{Fore.RESET}]", f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
-def SearchEmail():
-	email = input(" Email: ")
-	print("\n"+wait+" Recherche d'information sur '%s'..." % (email))
-	lkd = leaked()
-	leak = lkd.email(email)
+def search_email_leaks():
+    email = input(f"{Q} Email: ").strip()
+    if not email: return
 
-	if leak:
-		TABLE_DATA = [
-			('Title', 'Domain', 'Date'),
-		]
+    print(f"\n{S} Recherche de fuites (HIBP) pour '{email}'...")
+    
+    # 1. Check Breach Databases (HIBP)
+    lkd = Leaked(hibp_api_key="YOUR_KEY_HERE") # Needs your API key now
+    breaches = lkd.check_email_breach(email)
 
-		for lk in leak:
-			name = lk['Title']
-			domain = lk['Domain']
-			date = lk['Date']
+    if isinstance(breaches, list) and breaches:
+        table_data = [['Title', 'Domain', 'Date']]
+        table_data.extend([[b['Title'], b['Domain'], b['Date']] for b in breaches])
+        print("\n" + SingleTable(table_data, " Sites Compromis ").table)
+    else:
+        print(f"{W} Aucune brèche publique trouvée via API.")
 
-			tuples = (name, domain, date)
-			TABLE_DATA.append(tuples)
+    # 2. Google Dorking for "Combo Lists" (Passwords)
+    print(f"\n{S} Recherche de mots de passe (Dorking)...")
+    
+    # Dork: intext:"user@email.com:" looks for "email:password" format
+    search_url = "https://www.google.com/search"
+    params = {'q': f'intext:"{email}:"', 'num': 50}
+    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
 
-		table = SingleTable(TABLE_DATA, " Leaked Site ")
-		print(table.table)
+    try:
+        res = requests.get(search_url, params=params, headers=headers, timeout=10)
+        # Using a set to avoid duplicate passwords
+        found_combos = set()
+        
+        # Simple extraction of URLs from search results
+        links = re.findall(r'url\?q=(https?://.*?)&', res.text)
+        links = [l for l in links if not any(x in l for x in ["google", "youtube", "facebook"])]
 
+        if not links:
+            print(f"{W} Aucun dump public trouvé sur Google.")
+            return
 
-		print("\n"+wait+" Recherche du Mot de passse...")
+        print(f"{S} Analyse de {len(links)} sources potentielles...")
 
-	table_dump = [
-		('Email', 'Password'),
-	]
+        for link in links:
+            try:
+                # Scrape the text content of the potential dump
+                page_text = requests.get(link, headers=headers, timeout=5).text
+                
+                # Regex logic: find the email followed by a colon and then the password
+                # This pattern stops at whitespace or common HTML delimiters
+                pattern = f"{re.escape(email)}:([^\\s<>\"]+)"
+                matches = re.findall(pattern, page_text)
+                
+                for password in matches:
+                    found_combos.add(password)
+            except:
+                continue
 
-	url = "https://www.google.fr/search?num=100&q=\\intext:\"%s\"\\"
-	content = requests.get(url % (email)).text
-	urls = re.findall('url\\?q=(.*?)&', content)
-	cout = len(urls)
-	if cout == 0:
-		print(warning+" Aucun résultat.")
-	else:
-		print(wait+" Scan %s Link..." % (str(cout)))
-		x = 1
-		countPassword = 0
-		for url in urls:
-			if not "googleusercontent" in url:
-				if not "/settings/ads" in url:
-					if not "webcache.googleusercontent.com/" in url:
-						if not "/policies/faq" in url:
-							try:
-								# print("(%s) link scanned. " % (str(x)))
-								texte = requests.get(url).text
-								# print("Search...")
-								combo = re.search(email+r":([a-zA-Z0-9_ & * $ - ! / ; , ? + =  | \. ]+)", texte).group()
-								if combo:
-									passw = combo.split(":")[1]
-									tuples = (email, passw)
-									countPassword += 1
-									table_dump.append(tuples)
-									# print("[+] %s" % (combo))
-							except:
-								pass
-								# print("[?] %s " % (url))
-							# x = x + 1
-		if countPassword > 0:
-			table = SingleTable(table_dump, " Dump ")
-			print("\n"+table.table)
-		else:
-			print(warning+" Aucune donnée pour '%s' " % (email))
+        if found_combos:
+            dump_table = [['Email', 'Password']]
+            dump_table.extend([[email, pwd] for pwd in found_combos])
+            print("\n" + SingleTable(dump_table, " Dumps Trouvés ").table)
+        else:
+            print(f"{W} Aucun mot de passe en clair trouvé.")
+
+    except Exception as e:
+        print(f"{W} Erreur lors du Dorking: {e}")
+
+if __name__ == "__main__":
+    search_email_leaks()

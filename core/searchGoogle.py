@@ -1,75 +1,32 @@
-import requests, re
+import re
+from urllib.parse import unquote
 
-def searchGoogle(requete='', requete2=''):
+def search_google(request_main=None, request_secondary=None):
+    """
+    Parses Google search responses to extract and decode clean URLs.
+    """
+    # Define keywords to filter out (Google internal pages)
+    excludes = {"googleusercontent", "/settings/ads", "/policies/faq"}
 
-	# encodeList = [
-	# 	"%21","%23","%24","%26","%27","%28","%29","%2A","%2B","%2C","%2F","%3A","%3B","%3D","%3F","%40","%5B","%5D",
-	# 	"%20","%22","%25","%2D","%2E","%3C","%3E","%5C","%5E","%5F","%60","%7B","%7C","%7D","%7E"
-	# ]
+    def process_content(response, prefix="[+]"):
+        if not response:
+            return
+        
+        content = response.text
+        # Extract the 'q' parameter from Google's redirect URLs
+        raw_urls = re.findall(r'url\?q=(.*?)&', content)
+        
+        for url in raw_urls:
+            # unquote() handles all %XX characters automatically
+            decoded_url = unquote(url)
+            
+            # Filter and display
+            if not any(x in decoded_url for x in excludes):
+                print(f"{prefix} Possible connection: {decoded_url}")
 
-	encodeDic = {
-		"%21": "!",
-		"%23": "#",
-		"%24": "$",
-		"%26": "&",
-		"%27": "'",
-		"%28": "(",
-		"%29": ")",
-		"%2A": "*",
-		"%2B": "+",
-		"%2C": ",",
-		"%2F": "/",
-		"%3A": ":",
-		"%3B": ";",
-		"%3D": "=",
-		"%3F": "?",
-		"%40": "@",
-		"%5B": "[",
-		"%5D": "]", 
-		"%20": " ",
-		"%22": "\"",
-		"%25": "%",
-		"%2D": "-",
-		"%2E": ".",
-		"%3C": "<",
-		"%3E": ">",
-		"%5C": "\\",
-		"%5E": "^",
-		"%5F": "_",
-		"%60": "`",
-		"%7B": "{",
-		"%7C": "|",
-		"%7D": "}",
-		"%7E": "~",
-	}
-
-	if requete2 != '':
-		content = requete2.text #.content.decode('utf-8')
-		urls = re.findall('url\\?q=(.*?)&', content)
-		for url in urls:
-			for char in encodeDic:
-				find = re.search(char, url)
-				if find:
-					charDecode = encodeDic.get(char)
-					url = url.replace(char, charDecode)
-			if not "googleusercontent" in url:
-				if not "/settings/ads" in url:
-					if not "/policies/faq" in url:
-					# if "insta" in url or "twitter" in url or "facebook" in url:
-						print("[++] Possible connection: "+url)
-	else:
-		pass
-
-	content = requete.text
-	urls = re.findall('url\\?q=(.*?)&', content)
-	for url in urls:
-		for char in encodeDic:
-			find = re.search(char, url)
-			if find:
-				charDecode = encodeDic.get(char)
-				url = url.replace(char, charDecode)
-		if not "googleusercontent" in url:
-			if not "/settings/ads" in url:
-				if not "/policies/faq" in url:
-				# if "insta" in url or "twitter" in url or "facebook" in url:
-					print("[+] Possible connection: "+url)
+    # Process both requests if they exist
+    if request_secondary:
+        process_content(request_secondary, prefix="[++]")
+    
+    if request_main:
+        process_content(request_main, prefix="[+]")

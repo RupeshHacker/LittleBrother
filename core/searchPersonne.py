@@ -1,175 +1,96 @@
 import requests
+from colorama import init, Fore
+from terminaltables import SingleTable
+from urllib.parse import quote
+
+# Core imports
 from core.searchPJ import searchPJ
-from core.searchInfoNumero import searchInfoNumero
-from core.searchYellowLU import searchYellowLU
-from core.searchLocalCH import searchLocalCH
 from core.searchPageDor import searchPageDor
+from core.searchLocalCH import searchLocalCH
+from core.searchYellowLU import searchYellowLU
+from core.searchCopainsdavant import searchCopainsdavant
+from core.searchPersonneLinkedin import searchPersonneLinkedin
 from core.facebookSearchTool import facebookSearchTool
 from core.twitterSearchTool import twitterSearchTool
 from core.instagramSearchTool import instagramSearchTool
-from core.searchCopainsdavant import searchCopainsdavant
-from core.searchPersonneLinkedin import searchPersonneLinkedin
-from terminaltables import SingleTable
-from colorama import init, Fore,  Back,  Style
 
-warning = "["+Fore.RED+"!"+Fore.RESET+"]"
-question = "["+Fore.YELLOW+"?"+Fore.RESET+"]"
-found = "["+Fore.GREEN+"+"+Fore.RESET+"]"
-wait = "["+Fore.MAGENTA+"*"+Fore.RESET+"]"
+init(autoreset=True)
 
-init()
+# UI Icons
+W, Q, F, S = f"[{Fore.RED}!{Fore.RESET}]", f"[{Fore.YELLOW}?{Fore.RESET}]", f"[{Fore.GREEN}+{Fore.RESET}]", f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
-def searchPersonne(codemonpays):
+def search_personne(country_code):
+    nom = input(f"{Q} Nom, Prénom: ").strip()
+    city = input(f"{Q} Ville/Departement: ").strip()
+    
+    if not nom:
+        print(f"{W} Le nom est requis.")
+        return
 
-	nom = input(" Nom, Prénom: ")
-	city = input(" Ville/Departement: ")
-	print("\n"+wait+" Recherche...")
+    print(f"\n{S} Lancement de la recherche globale pour '{nom}'...")
 
-	try:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://google.com'
+    }
 
-		headers = {
-			'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36',
-    	    'referrer': 'https://google.com',
-        	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        	'Accept-Encoding': 'utf-8',
-        	'Accept-Language': 'en-US,en;q=0.9',
-        	'Pragma': 'no-cache'
-        }
+    # --- 1. Regional Phone Books ---
+    try:
+        if country_code == 'FR' or country_code == 'ALL':
+            url = f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={quote(nom)}&ou={quote(city)}"
+            res = requests.get(url, headers=headers, timeout=10)
+            searchPJ(res)
 
-		if codemonpays == 'FR':
-			# Page Jaune search
-			url = "https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={}&ou={}"
-			requete = requests.get(url.format(nom, city), headers=headers)
-			searchPJ(requete)
+        if country_code == 'BE' or country_code == 'ALL':
+            url = f"https://www.pagesblanches.be/chercher/personne/{quote(nom)}/{quote(city)}/"
+            res = requests.get(url, headers=headers, timeout=10)
+            searchPageDor(res)
 
-		elif codemonpays == 'BE':
-			# Page D'or search
-			url = "https://www.pagesblanches.be/chercher/personne/{}/{}/"
-			requete = requests.get(url.format(nom, city), headers=headers)
-			searchPageDor(requete)
+        if country_code == 'CH' or country_code == 'ALL':
+            url = f"https://tel.local.ch/fr/q?area={quote(city)}&name={quote(nom)}&typeref=res"
+            searchLocalCH(url)
 
-		elif codemonpays == 'CH':
-			# Suisse search
-			url = "https://tel.local.ch/fr/q?area={}&city=&company=&ext=1&name={}&phone=&rid=455h&street=&typeref=res"
-			searchLocalCH(url.format(city, nom))
+        if country_code == 'LU' or country_code == 'ALL':
+            url = f"https://www.yellow.lu/fr/pages-blanches/recherche?query={quote(nom)}"
+            searchYellowLU(url)
+    except Exception as e:
+        print(f"{W} Erreur annuaires: {e}")
 
-		elif codemonpays == 'LU':
-			# Luxembourg search
-			url = "https://www.yellow.lu/fr/pages-blanches/recherche?query={}"
-			searchYellowLU(url.format(nom))
+    # --- 2. Professional & School Networks ---
+    searchCopainsdavant(nom, city)
+    searchPersonneLinkedin(nom, city)
 
-		else:
-	        # Recherche FR
-			url = "https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={}&ou={}"
-			requete = requests.get(url.format(nom, city), headers=headers)
-			searchPJ(requete)
+    # --- 3. Social Media Dispatchers ---
+    
+    # FACEBOOK
+    fb = facebookSearchTool()
+    fb_results = fb.searchFacebook(nom)
+    if fb_results:
+        table_fb = [('Name', 'User', 'Location')]
+        for username, name in fb_results:
+            # Note: Optional deep info check - can be slow
+            # fb.getInfoProfile(username)
+            table_fb.append((name, username, "See Profile"))
+        print("\n" + SingleTable(table_fb, " Facebook ").table)
 
-			# Recherche BE
-			url = "https://www.pagesblanches.be/chercher/personne/{}/{}/"
-			requete = requests.get(url.format(nom, city), headers=headers)
-			searchPageDor(requete)
+    # TWITTER
+    tw = twitterSearchTool()
+    tw_results = tw.searchTwitter(nom)
+    if tw_results:
+        table_tw = [('Name', 'User', 'Location')]
+        for username, name in tw_results:
+            # We skip getInfoProfile here to maintain tool speed
+            table_tw.append((name, f"@{username}", "Dork Link"))
+        print("\n" + SingleTable(table_tw, " Twitter ").table)
 
-			# Recherche CH
-			url = "https://tel.local.ch/fr/q?area={}&city=&company=&ext=1&name={}&phone=&rid=455h&street=&typeref=res"
-			searchLocalCH(url.format(city, nom))
+    # INSTAGRAM
+    insta = instagramSearchTool()
+    insta.search_insta(nom) # Using our optimized method
+    if insta.accounts:
+        table_insta = [('User', 'Link')]
+        for acc in insta.accounts[:10]: # Limit to top 10 for speed
+            table_insta.append((acc, f"instagram.com/{acc}"))
+        print("\n" + SingleTable(table_insta, " Instagram ").table)
 
-			# Recherche LU
-			url = "https://www.yellow.lu/fr/pages-blanches/recherche?query={}"
-			searchYellowLU(url.format(nom))
-
-# Copain d'avant search
-		searchCopainsdavant(nom, city)
-
-# LinkedIn search
-		searchPersonneLinkedin(nom, city)
-
-# Facebook search		
-		fbtool = facebookSearchTool()
-		accountsFb = fbtool.searchFacebook(nom)
-
-		title = " Facebook "
-
-		TABLE_DATA = [
-			('Name', 'User', 'Location'),
-		]
-
-		count = 0
-
-		for a in accountsFb:
-			count += 1
-			name = a[1]
-			username = a[0]
-			fbtool.getInfoProfile(username)
-			loc = fbtool.address
-			if not loc:
-				loc = ""
-
-			tuples = (name, username, loc)
-			# listeInfos.append(tuples)
-			TABLE_DATA.append(tuples)
-		
-		if count > 0:
-			table_instance = SingleTable(TABLE_DATA, title)
-			print(table_instance.table)
-		
-# Twitter Search		
-		title = " Twitter "
-
-		TABLE_DATA = [
-			('Name', 'User', 'Date', 'Location'),
-		]
-
-		twitool = twitterSearchTool()
-		accountTwitter = twitool.searchTwitter(nom)
-
-		count = 0
-
-		for a in accountTwitter:
-			count += 1
-			name = a[1]
-			username = "@"+a[0]
-			twitool.getInfoProfile(a[0])
-			
-			location = twitool.location
-			date = twitool.birth
-			bio = twitool.description
-			url = twitool.url
-
-			tuples = (name, username, date, location)
-			TABLE_DATA.append(tuples)
-
-		if count > 0:
-			table_instance = SingleTable(TABLE_DATA, title)
-			print(table_instance.table)
-	# Instagram search
-
-		title = " Instagram "
-
-		instatls = instagramSearchTool()
-		instatls.searchInsta(nom)
-
-		accounts = instatls.accounts
-
-		TABLE_DATA = [
-			('Name', 'User'),
-		]
-
-		count = 0
-
-		for account in accounts:
-			url = "https://instagram.com/"+account
-			i = instagramSearchTool()
-			i.getInfo(url)
-			name = i.name
-
-			tuples = (name, account)
-			TABLE_DATA.append(tuples)
-
-			count +=1
-
-		if count > 0:
-			table = SingleTable(TABLE_DATA, title)
-			print(table.table)
-
-	except IOError:
-		pass
+if __name__ == "__main__":
+    search_personne("FR")

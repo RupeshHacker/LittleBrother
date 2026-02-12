@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "LittleBrother Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/RupeshHacker/LittleBrother"
+    }
+  }
+}

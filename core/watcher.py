@@ -1,87 +1,93 @@
-import requests, re, json, time
+import requests
+import re
+import json
+import time
+from urllib.parse import urljoin, quote
 
-class watcher:
+class Watcher:
+    """
+    Monitors Twitter and Instagram activity.
+    Optimized for memory efficiency and cross-platform merging.
+    """
+    def __init__(self):
+        self.tweet = {}
+        self.medias = {}
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
 
-	def twitterWatcher(self, user):
-		dicTweet = {}
+    def twitter_watcher(self, username):
+        """Extracts recent tweet links and timestamps."""
+        self.tweet = {}
+        username = username.replace("@", "").strip()
+        url_account = f"https://twitter.com/{username}"
+        
+        try:
+            res = requests.get(url_account, headers=self.headers, timeout=10)
+            if res.status_code == 200:
+                # Optimized regex to find tweet IDs and timestamps in raw HTML
+                # Note: Twitter often obfuscates this; regex is a 'best-effort' fallback
+                matches = re.findall(r'href="/.*/status/(\d+)".*?data-time="(\d+)"', res.text)
+                
+                for tweet_id, timestamp in matches:
+                    ts = int(timestamp)
+                    self.tweet[ts] = {
+                        "domain": "Twitter",
+                        "tweet": f"{url_account}/status/{tweet_id}",
+                        "date": time.ctime(ts),
+                        "timestamp": ts
+                    }
+        except Exception as e:
+            print(f"[!] Twitter Watcher Error: {e}")
 
-		if not user.startswith('http'):
-			urlAccount = "https://twitter.com/"+user
-		else:
-			urlAccount = user
+    def instagram_watcher(self, username):
+        """Extracts recent media, captions, and locations."""
+        self.medias = {}
+        username = username.replace("@", "").strip()
+        url_account = f"https://www.instagram.com/{quote(username)}/"
 
-			req = requests.get(urlAccount)
-			page = req.text
+        try:
+            res = requests.get(url_account, headers=self.headers, timeout=10)
+            if res.status_code != 200:
+                return
 
-			if req.status_code == 200:
-				try:
-					tweets = re.findall(r"href=\"/.*/status/([0-9]+)\" .* data-time=\"([0-9]+)\" ", page)
-					countX = len(tweets)
+            # Search for the modern __additionalDataLoaded or legacy _sharedData
+            json_match = re.search(r'window\._sharedData\s*=\s*({.*?});', res.text)
+            if not json_match:
+                return
 
-					for t in tweets:
-						tweet = urlAccount+"/status/"+t[0]
-						timestamp = int(t[1])
-						date = time.ctime(int(timestamp))
+            data = json.loads(json_match.group(1))
+            user_data = data.get('entry_data', {}).get('ProfilePage', [{}])[0].get('graphql', {}).get('user')
+            
+            if not user_data or user_data.get('is_private'):
+                return
 
-						dicTweet[timestamp] = {"domain":"Twitter", "tweet":tweet, "date":date}
-						countX += 1
-				except:
-					dicTweet = {}
+            edges = user_data.get('edge_owner_to_timeline_media', {}).get('edges', [])
+            
+            for edge in edges[:12]:  # Limit to 12 most recent
+                node = edge.get('node', {})
+                ts = node.get('taken_at_timestamp')
+                if not ts: continue
 
-		self.tweet = dicTweet
+                # Safe caption extraction using .get() and list checks
+                captions = node.get('edge_media_to_caption', {}).get('edges', [])
+                legende = captions[0]['node']['text'] if captions else ""
 
-	def instagramWatcher(self, user):
-		if not user.startswith('http'):
-			urlAccount = "https://instagram.com/"+user
-		else:
-			urlAccount = user
+                self.medias[ts] = {
+                    "domain": "Instagram",
+                    "urlMedia": node.get('display_url'),
+                    "type": "Video" if node.get('is_video') else "Photo",
+                    "legende": legende,
+                    "info": node.get('accessibility_caption', ""),
+                    "location": node.get('location', {}).get('name') if node.get('location') else None,
+                    "date": time.ctime(ts),
+                    "timestamp": ts
+                }
+        except Exception as e:
+            print(f"[!] Instagram Watcher Error: {e}")
 
-		picturesList = []
-
-		req = requests.get(urlAccount)
-
-		if req.status_code == 200:
-			page = req.content.decode('utf-8')
-			jsonData = re.findall(r"<script type=\"text/javascript\">(.*);</script>", page)
-			jsonDataFound = jsonData[0].replace("window._sharedData = ", "")
-
-			private = re.findall(r"is_private\":(true|false)", page)
-				
-			values = json.loads(jsonDataFound)
-			
-			nbMedia = values['entry_data']['ProfilePage'][0]['graphql']['user']['edge_owner_to_timeline_media']['count']
-
-			if nbMedia > 11:
-				nbMedia = 11
-
-			MediaDic = values['entry_data']['ProfilePage'][0]['graphql']['user']['edge_owner_to_timeline_media']['edges']
-			countX = 0
-
-			picturesList = {}
-
-			if not private:
-				while countX <= nbMedia:
-					displayMedia = MediaDic[countX]['node']['display_url']
-					legende = MediaDic[countX]['node']['edge_media_to_caption']['edges'][0]['node']['text']
-					isVideo = MediaDic[countX]['node']['is_video']
-					location = MediaDic[countX]['node']['location']
-					timestamp = MediaDic[countX]['node']['taken_at_timestamp']
-					date = time.ctime(timestamp)
-
-					try:
-						infoMedia = MediaDic[countX]['node']['accessibility_caption']
-					except:
-						infoMedia = ""
-
-					if isVideo:
-						typeMedia = "Video"
-					else:
-						typeMedia = "Photo"
-
-					picturesList[timestamp] = {"domain":"Instagram", "urlMedia":displayMedia, "type":typeMedia, "legende":legende, "info":infoMedia, "location":location, "date":date, "timestamp":timestamp}
-
-					countX += 1
-			else:
-				picturesList = {}
-
-		self.medias = picturesList
+    def get_unified_timeline(self):
+        """Merges both dictionaries and sorts them by timestamp."""
+        combined = {**self.tweet, **self.medias}
+        # Returns a list of events sorted newest to oldest
+        return sorted(combined.values(), key=lambda x: x['timestamp'], reverse=True)

@@ -103,53 +103,62 @@ def facebookStalk():
 
 	fbtool = facebookSearchTool()
 
+	# 1. Attempt Initial Data Collection
 	try:
 		fbtool.getInfoProfile(profile)
-		
-		loc = fbtool.address
-		work = fbtool.job
-		name = fbtool.name
-		ID = fbtool.facebookId
-		facebookID = ID
+		# Using .get() style or direct assignment if attributes are guaranteed
+		loc = fbtool.address or "Inconnu"
+		work = fbtool.job or "Inconnu"
+		name = fbtool.name or "Inconnu"
+		facebook_id = fbtool.facebookId
+	except Exception as e:
+		print(f"\n{W} Une erreur est survenue : {e}")
+		return
 
-	except:
-		print("\n"+warning+" Une erreur est survenue !")
+	# 2. ID Validation Step
+	if not facebook_id:
+		print(f"\n{W} Impossible de récupérer l'ID automatiquement.")
+		choice = input(f"{Q} Connaissez-vous l'ID ? [O/N]: ").upper()
+		if choice in ("O", "Y"):
+			facebook_id = input(f"{S} Entrez l'ID: ").strip()
+		else:
+			return # Exit stalker if no ID is available
 
+	# 3. Display Results Summary
+	# Assuming resultProfile is a pre-defined format string
+	print(resultProfile % (name, work, loc, facebook_id))
+	print(menuStalk)
+
+	# 4. Interactive Menu Loop
 	while True:
+		prompt = f"\nLittleBrother({Fore.BLUE}Lookup/facebookStalk{Fore.RESET})$ "
+		cmd = input(prompt).strip().lower()
 
-		if not facebookID:
-			print("\n"+warning+" Impossible de recuperer l'ID.")
-			print(question+"\n Connaissez-vous l'ID ?")
-			_id_  = input(question+" [O/N]: ")
-			if _id_.upper() == "O" or _id_.upper() == "Y":
-				facebookID = input(" ID: ")
-				input(facebookID)
+		if cmd == "help":
+			print(helpMsgFbStalk)
+		elif cmd == "c":
+			clear() # Ensure clear() is defined in your core utils
+			print(menuStalk)
+		elif cmd == "b":
+			break # Go back to previous menu
+		elif cmd == "e":
+			exit()
+		elif cmd == "29":
+			# Specialized Page Liked check
+			print(f"{S} Recherche des pages aimées...")
+			pages = fbtool.searchPageLiked(profile)
+			if pages:
+				for p in pages:
+					print(f"[{Fore.GREEN}Liked{Fore.RESET}] {p}")
 			else:
-				break
-
-		print(resultProfile % (name, work, loc, ID))
-		print(menuStalk)
-		
-		while True:
-			s = input("\n LittleBrother("+Fore.BLUE + "Lookup/facebookStalk" + Fore.RESET + ")$ ")
-			if s == "help":
-				print(helpMsgFbStalk)
-			elif s.lower() == "c":
-				clear()
-				print(menuStalk)
-			elif s.lower() == "b":
-				break
-			elif s.lower() == "e":
-				quit()
-			else:
-				if str(s) == '29':
-					pages = fbtool.searchPageLiked(profile)
-					for p in pages:
-						print("[Liked] %s" % (p))
-				try:
-					int(s)
-					facebookUrl = dicFbStalk.get(str(s))
-					webbrowser.open(facebookUrl % (facebookID))
-				except ValueError:
-					pass
-		break
+				print(f"{W} Aucune page trouvée ou profil privé.")
+		else:
+			# Handle Numeric Menu Options (Opening Browser)
+			if cmd.isdigit():
+				target_url_template = dicFbStalk.get(cmd)
+				if target_url_template:
+					final_url = target_url_template % facebook_id
+					print(f"{S} Ouverture de : {final_url}")
+					webbrowser.open(final_url)
+				else:
+					print(f"{W} Option '{cmd}' non reconnue.")

@@ -1,286 +1,117 @@
-import os, sys, json
+import os
+import json
+from pathlib import Path
 from terminaltables import SingleTable
 
 class Profiler:
+    """Manages OSINT profile persistence and database searching."""
 
-	def exportText(self, fileName='', path='', data=''):
-		try:
-			file = path+'\\'+fileName
-			
-			with open(file, 'w', encoding='utf-8') as f:
-				f.write(data)
-				f.close()
-				
-			return(True)
-		except:
-			return(False)
+    def export_text(self, file_name, path, data):
+        """Safely exports raw text data to a file."""
+        try:
+            # Pathlib handles slashes automatically for Linux/Windows
+            full_path = Path(path) / file_name
+            full_path.write_text(data, encoding='utf-8')
+            return True
+        except Exception:
+            return False
 
-	def readProfile(self, fileName='', path=''):
-		# try:
-		if not path.endswith("/"):
-			path += "/"
+    def read_profile(self, file_name, path):
+        """Reads and parses a .prfl JSON file."""
+        p = Path(path)
+        if not file_name.endswith('.prfl'):
+            file_name = f"{file_name.replace(' ', '_')}.prfl"
+        
+        file_path = p / file_name
+        try:
+            if file_path.exists():
+                return json.loads(file_path.read_text(encoding='utf-8'))
+        except (json.JSONDecodeError, FileNotFoundError):
+            pass
+        return None
 
-			if not fileName.endswith(".prfl"):
-				fileName = fileName.replace(' ', '_')
-				fileName += '.prfl'
-		
-			path += fileName
-			data_prfl = ''
+    def write_profile(self, file_name, path, info):
+        """Writes or updates a profile JSON file."""
+        if not file_name.endswith('.prfl'):
+            file_name = f"{file_name.replace(' ', '_')}.prfl"
+        
+        file_path = Path(path) / file_name
+        data_prfl = {}
 
-		with open(path) as f:
-			data = f.read()
-			
-			if data != "":
-				data = json.loads(data)
-			else:
-				data = None
-			
-			f.close()
-			return(data)
-		
-		# except:
-		# 	return(False)
+        # Read existing data if it exists
+        if file_path.exists():
+            try:
+                data_prfl = json.loads(file_path.read_text(encoding='utf-8'))
+            except json.JSONDecodeError:
+                pass
 
-	def writeProfile(self, fileName='', path='', info=''):
-		if not path.endswith("/"):
-			path += "/"
+        # Update and Save
+        data_prfl.update(info)
+        try:
+            file_path.write_text(json.dumps(data_prfl, indent=4), encoding='utf-8')
+            return True
+        except Exception:
+            return False
 
-		fileName = fileName.replace(' ', '_')
+    def load_database(self, path):
+        """Indexes all .prfl files in a directory."""
+        p = Path(path)
+        # Using a dictionary comprehension for speed
+        profiles = {f.name: i+1 for i, f in enumerate(p.glob("*.prfl"))}
+        
+        self.database = profiles
+        self.count = len(profiles)
+        # Size in KB
+        self.size = sum(f.stat().st_size for f in p.glob("*.prfl")) / 1024
 
-		if not fileName.endswith(".prfl"):
-			fileName += '.prfl'
+    def time_sort(self, data_list, reverse=False):
+        """Sorts profile data by timestamp key."""
+        merged = {}
+        for dico in data_list:
+            for timestamp, value in dico.items():
+                # Handle duplicate timestamps by incrementing slightly
+                ts = int(timestamp)
+                while ts in merged:
+                    ts += 1
+                merged[ts] = value
+        
+        # Sort using Python's highly optimized Timsort
+        sorted_keys = sorted(merged.keys(), reverse=reverse)
+        return {k: merged[k] for k in sorted_keys}
 
-		data_prfl = ''
-		path += fileName
+    def show_all_profiles(self):
+        """Displays all indexed profiles in a table."""
+        if not hasattr(self, 'database'):
+            print("[!] Database not loaded.")
+            return
 
-		try:
-			with open(path, 'r') as prfl_data:
-				data = prfl_data.read()
-				prfl_data.close()
-				
-				if data != '':				
-					data_prfl = json.loads(data)
-					data_prfl.update(info)
+        table_data = [('ID', 'Name')]
+        for filename, id_num in self.database.items():
+            clean_name = filename.replace("_", " ").replace(".prfl", "")
+            table_data.append((str(id_num), clean_name))
 
-		except FileNotFoundError:
-			pass
+        print(SingleTable(table_data, " Database ").table)
 
-		try:
-			with open(path, 'w') as f:
-				if data_prfl:
-					data = json.dumps(data_prfl)
-				else:
-					data = json.dumps(info)	
-				
-				f.write(data)
-				f.close()
-			
-			return(True)
-		except:
-			return(False)
+    def search_database(self, query):
+        """Searches for a profile by ID or Name."""
+        if not hasattr(self, 'database'): return None
 
+        # 1. Search by ID
+        if query.isdigit():
+            id_query = int(query)
+            for filename, id_num in self.database.items():
+                if id_num == id_query:
+                    name = filename.replace("_", " ").replace(".prfl", "")
+                    return {'id': id_num, 'name': name, 'file': filename}
+            return None
 
-	# def createProfile(name='', path='', **info):
-	# 	try:
-	# 		f = open(path+""+name, 'w')
-			
-	# 		for domain in info:
-	# 			url = info.get(domain)
-	# 			if url != "":
-	# 				f.write("[URL] %s" % (url))
-
-	# 		f.close()	
-	# 		return(True)
-
-	# 	except:
-	# 		return(False)
-
-
-			
-	def loadDatabase(self, path):
-		ProfilesDic = {}
-		x = 1
-	
-		datas = os.listdir(path)
-		size = os.path.getsize(path)
-		sizeOfDB = size / 1000
-
-		for data in datas:
-			if not data.endswith(".ini") and data.endswith(".prfl"):
-				ProfilesDic[data] = x
-				x +=1
-
-		self.database = ProfilesDic
-		self.count = x -1
-		self.size = sizeOfDB
-
-	def timeSort(self, data, reverse=False):
-		dictsJoined = {}
-		dicts = {}
-		keysList = []
-		count = len(data)
-		x = 0
-
-		while int(x) < int(count):
-			dico = data[x]
-
-			for d in dico:
-				if d in dicts and d != '':
-					_d = int(d) +1
-					dico[_d] = dico.get(d)
-					del dico[d]
-
-			dicts.update(dico)
-
-			for key in dico:
-				keysList.append(key)
-
-			x +=1
-
-		keysList.sort(reverse=reverse)
-
-		for key in keysList:
-			dictsJoined[key] = dicts.get(key)
-
-		return(dictsJoined)
-		
-	def showAllProfiles(self, database=''):
-		ProfilesDic = database
-		table_data = [
-			('ID', 'Name'),
-		]
-
-		for p in ProfilesDic:
-			name = p
-			num = ProfilesDic.get(name)
-			name = name.replace("_", " ").replace(".prfl", "")
-
-			tuples = (str(num), name)
-			table_data.append(tuples)
-
-		table = SingleTable(table_data)
-		print(table.table)
-
-	def searchDatabase(self, profile, database=''):
-		def nameToFile(name):
-			nameSplit = name.split(" ")
-			nameCapital = []
-			
-			for n in nameSplit:
-				nameCapital.append(n.capitalize())
-
-			if len(nameSplit) == 1:
-				nameFile = nameCapital[0]+'.prfl'
-
-			elif len(nameSplit) > 1:
-				nameFile = ""
-				x = 0
-			
-				# while x < len(nameSplit):
-				# 	nameFile += nameCapital[x]
-					
-				# 	if x == len(nameSplit) -1:
-				# 		nameFile += '.prfl'
-				# 	else:
-				# 		nameFile += '_'
-
-				# 	x +=1
-
-				nameFile = "_".join(nameCapital)
-				nameFile += ".prfl"
-
-			else:
-				nameFile = None
-
-			return(nameFile)
-
-		def reverseName(name):
-			nameSplit = name.split(" ")
-			if nameSplit == 2:
-				nameReversed = "%s %s" % (nameSplit[1], nameSplit[0])
-				return(nameReversed.capitalize())
-			return name.capitalize()
-		# def searchProfiles(profile, database=''):
-		name = profile
-		nameType = ''
-		ProfilesDic = database
-
-		try:
-			int(name)
-			nameType = 'ID'
-		except:
-			pass
-
-		if nameType == 'ID' :
-			numId = name
-
-			for p in ProfilesDic:
-				num = ProfilesDic.get(p)
-				if num == int(numId):
-					nameFile = p
-					break
-				else:
-					nameFile = None
-
-			if nameFile is None:
-				dic = None
-			else:
-
-				# TABLE_DATA = [
-				# 	("ID", 'Name'),
-				# ]
-
-				name = nameFile.replace("_", " ").replace(".prfl", "")
-				# print(found+" Profil '%s' found." % (name))
-				# print("[ID] %s" % (numId))
-				# tuples = (numId, name)
-				# TABLE_DATA.append(tuples)
-				# table = SingleTable(TABLE_DATA, " Database ")
-				# print(table.table)
-				dic = {'id':numId, 'name':name, 'file':nameFile}
-
-
-		else:
-			nameFile = nameToFile(name)
-			find = ProfilesDic.get(nameFile)
-
-			dic = {'id':find, 'name':name, 'file':nameFile}
-
-			if not find:
-				if len(name.split(" ")) < 2:
-					nameReversed = reverseName(name)
-					nameReversedFile = nameToFile(nameReversed)
-					find = ProfilesDic.get(nameReversedFile)
-
-					if not find:
-						dic = None
-
-					else:
-						num = ProfilesDic.get(nameReversedFile)
-
-						dic = {'id': num, 'name':nameReversed, 'file':nameReversedFile}
-						# TABLE_DATA = [
-						# 	("ID", 'Name'),
-						# ]
-
-						# tuples = (num, nameReversed)
-						# TABLE_DATA.append(tuples)
-						# table = SingleTable(TABLE_DATA, " Database ")
-						# print(table.table)
-				else:
-					dic = None
-			else:
-				num = find
-				nameFile = [key for key,value in ProfilesDic.items() if value==num][0]
-				name = nameFile.replace("_", " ").replace(".prfl", "")
-				# TABLE_DATA = [
-				# 	("ID", "Name"),
-				# ]
-				# tuples = (num, name)
-				# TABLE_DATA.append(tuples)
-				# table = SingleTable(TABLE_DATA, " Database ")
-				# print(table.table)
-
-				dic = {'id':num, 'name': name, 'file':nameFile}
-		
-		return(dic)
+        # 2. Search by Name
+        # Format name to file standard: "john doe" -> "John_Doe.prfl"
+        formatted_name = "_".join([n.capitalize() for n in query.split()]) + ".prfl"
+        
+        id_num = self.database.get(formatted_name)
+        if id_num:
+            name = formatted_name.replace("_", " ").replace(".prfl", "")
+            return {'id': id_num, 'name': name, 'file': formatted_name}
+        
+        return None
