@@ -61,3 +61,8 @@ class SearchLinkedIn: # PascalCase for classes
         self.found = len(employee_list)
         self.employees = employee_list
         self.profiles = profiles_list
+
+
+def searchLinkedIn():
+    """Adapter for backward compatibility: returns a SearchLinkedIn instance."""
+    return SearchLinkedIn()

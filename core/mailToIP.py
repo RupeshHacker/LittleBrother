@@ -82,3 +82,9 @@ class MailAnalyzer:
 if __name__ == "__main__":
     analyzer = MailAnalyzer()
     analyzer.analyze()
+
+
+def mailToIP():
+    """Backward-compatible wrapper: runs the mail header analyzer."""
+    analyzer = MailAnalyzer()
+    return analyzer.analyze()

@@ -64,6 +64,10 @@ class Profiler:
         # Size in KB
         self.size = sum(f.stat().st_size for f in p.glob("*.prfl")) / 1024
 
+    # Backwards-compatible camelCase wrappers
+    def loadDatabase(self, path):
+        return self.load_database(path)
+
     def time_sort(self, data_list, reverse=False):
         """Sorts profile data by timestamp key."""
         merged = {}
@@ -92,6 +96,17 @@ class Profiler:
 
         print(SingleTable(table_data, " Database ").table)
 
+    def showAllProfiles(self, database=None):
+        if database is not None:
+            # Accept an external database mapping
+            table_data = [('ID', 'Name')]
+            for filename, id_num in database.items():
+                clean_name = filename.replace("_", " ").replace(".prfl", "")
+                table_data.append((str(id_num), clean_name))
+            print(SingleTable(table_data, " Database ").table)
+            return
+        return self.show_all_profiles()
+
     def search_database(self, query):
         """Searches for a profile by ID or Name."""
         if not hasattr(self, 'database'): return None
@@ -115,3 +130,27 @@ class Profiler:
             return {'id': id_num, 'name': name, 'file': formatted_name}
         
         return None
+
+    def searchDatabase(self, query, database=None):
+        # If a database is provided, use it temporarily
+        if database is not None:
+            # emulate the same behavior using provided mapping
+            if query.isdigit():
+                id_query = int(query)
+                for filename, id_num in database.items():
+                    if id_num == id_query:
+                        name = filename.replace("_", " ").replace(".prfl", "")
+                        return {'id': id_num, 'name': name, 'file': filename}
+                return None
+
+            formatted_name = "_".join([n.capitalize() for n in query.split()]) + ".prfl"
+            id_num = database.get(formatted_name)
+            if id_num:
+                name = formatted_name.replace("_", " ").replace(".prfl", "")
+                return {'id': id_num, 'name': name, 'file': formatted_name}
+            return None
+
+        return self.search_database(query)
+
+    def writeProfile(self, fileName, path, info):
+        return self.write_profile(fileName, path, info)

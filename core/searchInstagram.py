@@ -94,3 +94,7 @@ def search_instagram():
 
 if __name__ == "__main__":
     search_instagram()
+
+
+def searchInstagram():
+    return search_instagram()

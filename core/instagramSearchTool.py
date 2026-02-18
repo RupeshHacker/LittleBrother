@@ -111,6 +111,14 @@ class InstagramSearchTool:
             except (KeyError, IndexError):
                 pass
 
+        # Backwards-compatible aliases expected by the project
+    # Backwards-compatible aliases expected by the project
+    def getInfo(self, username):
+        return self.get_info(username)
+
+    def getPicturesInfo(self, username):
+        return self.get_pictures_info(username)
+
     def search_insta(self, query):
         """Searches Google for Instagram profiles."""
         google_url = f"https://www.google.com/search?q=site:instagram.com {quote(query)}"
@@ -144,3 +152,16 @@ class InstagramSearchTool:
         except (KeyError, IndexError):
             pass
         return results
+
+    def downloadPictures(self, url, path, filename):
+        """Convenience wrapper that uses the module-level `download` helper."""
+        try:
+            return download(url, path, filename)
+        except Exception:
+            return None
+
+
+def instagramSearchTool():
+    """Factory for backward compatibility: returns an InstagramSearchTool instance."""
+    return InstagramSearchTool()
+    

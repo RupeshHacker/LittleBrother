@@ -12,7 +12,7 @@ Q = f"[{Fore.YELLOW}?{Fore.RESET}]"
 F = f"[{Fore.GREEN}+{Fore.RESET}]"
 S = f"[{Fore.MAGENTA}*{Fore.RESET}]"
 
-def bssid_finder():
+def bssidFinder():
     bssid = input(f"{Q} MAC/BSSID: ").strip()
     if not bssid:
         print(f"{W} Please enter a valid BSSID.")
@@ -54,4 +54,4 @@ def bssid_finder():
         print(f"\n{W} Data Error: Received unexpected response format.")
 
 if __name__ == "__main__":
-    bssid_finder()
+    bssidFinder()

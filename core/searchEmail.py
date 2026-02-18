@@ -76,3 +76,8 @@ def search_email_leaks():
 
 if __name__ == "__main__":
     search_email_leaks()
+
+
+def SearchEmail():
+    """Compatibility wrapper expected by the main menu."""
+    return search_email_leaks()

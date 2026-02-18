@@ -64,3 +64,7 @@ def search_twitter():
 
 if __name__ == "__main__":
     search_twitter()
+
+
+def searchTwitter():
+    return search_twitter()

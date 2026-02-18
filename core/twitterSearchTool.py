@@ -82,3 +82,8 @@ class TwitterSearchTool:
 
         except Exception as e:
             print(f"[!] Error fetching profile @{username}: {e}")
+
+
+def twitterSearchTool():
+    """Factory for backward compatibility: returns a TwitterSearchTool instance."""
+    return TwitterSearchTool()

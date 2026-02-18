@@ -91,3 +91,19 @@ class Watcher:
         combined = {**self.tweet, **self.medias}
         # Returns a list of events sorted newest to oldest
         return sorted(combined.values(), key=lambda x: x['timestamp'], reverse=True)
+
+
+    # Backward-compatible camelCase wrappers
+    def twitterWatcher(self, username):
+        return self.twitter_watcher(username)
+
+    def instagramWatcher(self, username):
+        return self.instagram_watcher(username)
+
+    def getUnifiedTimeline(self):
+        return self.get_unified_timeline()
+
+
+def watcher():
+    """Factory for backward compatibility: returns a Watcher instance."""
+    return Watcher()

@@ -83,3 +83,7 @@ def search_copains_davant(full_name, city):
 if __name__ == "__main__":
     # Test call
     search_copains_davant("Jean Dupont", "Paris")
+
+
+def searchCopainsdavant(full_name, city):
+    return search_copains_davant(full_name, city)

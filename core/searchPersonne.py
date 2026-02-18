@@ -94,3 +94,7 @@ def search_personne(country_code):
 
 if __name__ == "__main__":
     search_personne("FR")
+
+
+def searchPersonne(country_code):
+    return search_personne(country_code)

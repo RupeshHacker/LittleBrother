@@ -139,3 +139,8 @@ def profiler_func(profile=None, path=''):
     if input(f"\n{Q} Exporter vers {export_name} ? [O/n]: ").lower() in ('', 'o', 'y'):
         if pr.export_text(export_name, path, summary):
             print(f"{F} Export réussi: {os.path.join(path, export_name)}")
+
+
+def profilerFunc(profile=None, path=''):
+    """Compatibility wrapper for older imports."""
+    return profiler_func(profile=profile, path=path)

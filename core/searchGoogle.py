@@ -30,3 +30,17 @@ def search_google(request_main=None, request_secondary=None):
     
     if request_main:
         process_content(request_main, prefix="[+]")
+
+
+def searchGoogle(request_main=None, request_secondary=None, **kwargs):
+    """Backward-compatible wrapper for `search_google`.
+
+    Accepts French keyword names `requete` and `requete2` used elsewhere.
+    """
+    # Map French parameter names to the expected ones
+    if 'requete' in kwargs and request_main is None:
+        request_main = kwargs.get('requete')
+    if 'requete2' in kwargs and request_secondary is None:
+        request_secondary = kwargs.get('requete2')
+
+    return search_google(request_main=request_main, request_secondary=request_secondary)

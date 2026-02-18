@@ -70,3 +70,7 @@ def search_address(country_code):
         lookup_france(address)
         lookup_switzerland(address)
         lookup_luxembourg(address)
+
+
+def searchAdresse(country_code):
+    return search_address(country_code)

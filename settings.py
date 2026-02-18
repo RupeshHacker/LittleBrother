@@ -1,33 +1,19 @@
-import os, datetime
-import requests, json
-from core.bssidFinder import bssidFinder
-from core.employee_lookup import employee_lookup
-from core.google import google
-from core.hashDecrypt import hashdecrypt
-from core.ipFinder import ipFinder
-from core.mailToIP import mailToIP
-from core.profilerFunc import profilerFunc
-from core.searchAdresse import searchAdresse
-from core.searchTwitter import searchTwitter
-from core.searchPersonne import searchPersonne
-from core.searchInstagram import searchInstagram
-from core.searchUserName import searchUserName
-from core.searchNumber import searchNumber
-from core.searchEmail import SearchEmail
+import os
+import datetime
+import requests
+import json
 from core.Profiler import Profiler
-from core.facebookStalk import facebookStalk
 
 def init():
     global version
     global monip, monpays, codemonpays, pathDatabase
-    global bssidFinder, employee_lookup, google, hashdecrypt, ipFinder, mailToIP, profilerFunc
-    global searchPersonne, SearchEmail, searchInstagram, searchTwitter, searchNumber, searchAdresse, searchUserName, facebookStalk
+    # Note: keep settings lightweight; heavy tools are imported by `LittleBrother.py` when needed
     global Profiler
 
     version = '6.0.2'
 
-    pathDatabase = os.path.abspath(__file__).split("\\")[:-1]
-    pathDatabase = "\\".join(pathDatabase)+"\\Watched"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    pathDatabase = os.path.join(base_dir, "Watched")
 
     monip = requests.get("https://api.ipify.org/").text
 

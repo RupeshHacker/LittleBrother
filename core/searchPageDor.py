@@ -49,3 +49,8 @@ def search_page_dor(request, num=''):
     else:
         # Fallback if the lists were empty but "Aucun résultat" wasn't in text
         print(f"\n{W} La structure de la page a changé ou aucun résultat n'est visible.")
+
+
+def searchPageDor(request, num=''):
+    """Compatibility wrapper for existing imports."""
+    return search_page_dor(request, num=num)

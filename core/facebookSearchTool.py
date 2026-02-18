@@ -71,3 +71,12 @@ class FacebookSearchTool: # PascalCase for classes
 
         except Exception as e:
             print(f"Erreur profile {username}: {e}")
+
+    # Backwards-compatible aliases
+    def getInfoProfile(self, profile):
+        return self.get_info_profile(profile)
+
+
+def facebookSearchTool():
+    """Factory for backward compatibility: returns a FacebookSearchTool instance."""
+    return FacebookSearchTool()

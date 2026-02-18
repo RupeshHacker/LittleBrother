@@ -65,3 +65,13 @@ class Leaked:
             return f"Connection Error: {e}"
         
         return None
+
+
+    # Backwards-compatible alias expected by older modules
+    def hash(self, hash_value):
+        return self.hash_reverse(hash_value)
+
+
+def leaked(hibp_api_key=None):
+    """Factory for backward compatibility: returns a Leaked instance."""
+    return Leaked(hibp_api_key=hibp_api_key)
